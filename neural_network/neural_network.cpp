@@ -84,7 +84,7 @@ Mat neural_network::get_bow_features(FlannBasedMatcher& flann, const Mat& descri
 
 	flann.match(descriptors_CV_32S, matches);
 
-	for (size_t i = 0; i < matches.size();i++)
+	for (size_t i = 0; i < matches.size(); i++)
 	{
 		int visual_word = matches[i].trainIdx;
 		output_array.at<float>(visual_word)++;
@@ -97,13 +97,62 @@ int neural_network::get_predicted_class(const Mat& predictions)
 	float max_prediction = predictions.at<float>(0);
 	float max_prediction_index = 0;
 	const float* ptr_predictions = predictions.ptr<float>(0);
-	for(int i = 0; i < predictions.cols; i++)
+	for (int i = 0; i < predictions.cols; i++)
 	{
 		float prediction = *ptr_predictions++;
-		if(prediction > max_prediction)
+		if (prediction > max_prediction)
 		{
 			max_prediction = prediction;
 			max_prediction_index = i;
 		}
 	}
+	return max_prediction_index;
+}
+
+vector<vector<int>> neural_network::get_confusion_matrix(Ptr<ml::ANN_MLP> mlp, const Mat& test_samples, const vector<int>& test_output_expected)
+{
+	Mat test_output;
+	neural_network n_n = neural_network();
+
+	mlp->predict(test_samples, test_output);
+	vector<vector<int>> confusion_matrix(2, vector<int>(2));
+	for (int i = 0; i < test_output.rows; i++)
+	{
+		int predicted_class = n_n.get_predicted_class(test_output.row(i));
+		int expected_class = test_output_expected.at(i);
+		confusion_matrix[expected_class][predicted_class]++;
+	}
+	return confusion_matrix;
+}
+
+void neural_network::print_confusion_matrix(const vector<vector<int>>& confussion_matrix, const set<string> classes)
+{
+	for (auto it = classes.begin(); it != classes.end(); ++it)
+	{
+		cout << *it << " ";
+	}
+	cout << endl;
+	for (size_t i = 0; i < confussion_matrix.size(); i++)
+	{
+		for (size_t j = 0; j < confussion_matrix[i].size(); j++)
+		{
+			cout << confussion_matrix[i][j] << " ";
+		}
+		cout << endl;
+	}
+}
+
+float neural_network::get_accuracy(const vector<vector<int>>& confusion_matrix)
+{
+	int hits = 0;
+	int total = 0;
+	for (size_t i = 0; i < confusion_matrix.size(); i++)
+	{
+		for (size_t j = 0; j < confusion_matrix.at(i).size(); j++)
+		{
+			if (i == j) hits += confusion_matrix.at(i).at(j);
+			total += confusion_matrix.at(i).at(j);
+		}
+	}
+	return hits / (float)total;
 }

@@ -74,3 +74,36 @@ Ptr<ml::ANN_MLP> neural_network::get_trainedNeural_network(const Mat& train_samp
 	mlp->train(train_samples, ml::ROW_SAMPLE, train_responses);
 	return mlp;
 }
+
+Mat neural_network::get_bow_features(FlannBasedMatcher& flann, const Mat& descriptors, int vocabulary_size)
+{
+	Mat output_array = Mat::zeros(Size(vocabulary_size, 1), CV_32F);
+	Mat descriptors_CV_32S;
+	descriptors.convertTo(descriptors_CV_32S, CV_32F);
+	vector<cv::DMatch> matches;
+
+	flann.match(descriptors_CV_32S, matches);
+
+	for (size_t i = 0; i < matches.size();i++)
+	{
+		int visual_word = matches[i].trainIdx;
+		output_array.at<float>(visual_word)++;
+	}
+	return output_array;
+}
+
+int neural_network::get_predicted_class(const Mat& predictions)
+{
+	float max_prediction = predictions.at<float>(0);
+	float max_prediction_index = 0;
+	const float* ptr_predictions = predictions.ptr<float>(0);
+	for(int i = 0; i < predictions.cols; i++)
+	{
+		float prediction = *ptr_predictions++;
+		if(prediction > max_prediction)
+		{
+			max_prediction = prediction;
+			max_prediction_index = i;
+		}
+	}
+}

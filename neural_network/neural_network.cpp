@@ -7,43 +7,56 @@
 #include <experimental/filesystem>
 #include <set>
 #include <opencv2/ml.hpp>
+#include <fstream>
 
 typedef vector<string>::const_iterator myvector;
-namespace fs = std::experimental::filesystem::v1;
+namespace fs = experimental::filesystem::v1;
 
-Mat neural_network::get_descriptors(Mat img)
+Mat neural_network::get_features_orb(Mat img)
 {
-	Mat descriptors;
+	Mat features;
 	Ptr<ORB> orb = ORB::create();
 	Mat mask;
 	vector<KeyPoint> kp = vector<KeyPoint>();
-	orb->detectAndCompute(img, mask, kp, descriptors);
-	return descriptors;
+	orb->detectAndCompute(img, mask, kp, features);
+	return features;
 }
 
-void neural_network::read_files(string pathImages, vector<string> & files) {
+Mat neural_network::get_features_AKAZE(Mat img)
+{
+	Ptr<AKAZE> akaze = AKAZE::create();
+	vector<KeyPoint> keypoints;
+	Mat features;
+	akaze->detectAndCompute(img, noArray(), keypoints, features);
+	return features;
+}
+
+void neural_network::read_files(string pathImages, vector<string> & files)
+{
 	for (auto & p : fs::directory_iterator(pathImages)) {
 		files.push_back(p.path().string());
 	}
 }
 
-void neural_network::read_images(myvector begin, myvector end, std::function<void(const std::string&, const Mat&)> callback) {
+void neural_network::read_images(myvector begin, myvector end, function<void(const string&, const Mat&)> callback)
+{
 	for (auto it = begin; it != end; it++) {
 		string readfilename = *it;
-		// Imread 1 --> color // Imread 0 --> grayscale
 		Mat image = imread(readfilename, 1);
 		if (image.empty()) {
-			cout << "The image is empty! " << endl;
+			std::cout << "The image is empty! " << std::endl;
+			fs::remove(readfilename);
 		}
 		else {
 			string classname = readfilename.substr(readfilename.find_last_of("\\") + 1, 3);
-			Mat descriptors = this->get_descriptors(image);
-			callback(classname, descriptors);
+			Mat features = this->get_features_orb(image);
+			//Mat features = this->get_features_AKAZE(image);
+			callback(classname, features);
 		}
 	}
 }
 
-Mat neural_network::get_class_code(const set<std::string>& classes, const std::string& classname)
+Mat neural_network::get_class_code(const set<string>& classes, const string& classname)
 {
 	Mat code = Mat::zeros(Size((int)classes.size(), 1), CV_32F);
 	int index = get_class_id(classes, classname);
@@ -51,7 +64,7 @@ Mat neural_network::get_class_code(const set<std::string>& classes, const std::s
 	return code;
 }
 
-int neural_network::get_class_id(const std::set<std::string>& classes, const std::string& classname)
+int neural_network::get_class_id(const set<string>& classes, const string& classname)
 {
 	int index = 0;
 	for (auto it = classes.begin(); it != classes.end(); ++it)
@@ -67,7 +80,7 @@ Ptr<ml::ANN_MLP> neural_network::get_trainedNeural_network(const Mat& train_samp
 	int network_input_size = train_samples.cols;
 	int network_output_size = train_responses.cols;
 	Ptr<ml::ANN_MLP> mlp = ml::ANN_MLP::create();
-	std::vector<int> layer_sizes = { network_input_size, network_input_size / 2,
+	vector<int> layer_sizes = { network_input_size, network_input_size / 2,
 		network_output_size };
 	mlp->setLayerSizes(layer_sizes);
 	mlp->setActivationFunction(ml::ANN_MLP::SIGMOID_SYM);
@@ -75,14 +88,14 @@ Ptr<ml::ANN_MLP> neural_network::get_trainedNeural_network(const Mat& train_samp
 	return mlp;
 }
 
-Mat neural_network::get_bow_features(FlannBasedMatcher& flann, const Mat& descriptors, int vocabulary_size)
+Mat neural_network::get_bow_features(FlannBasedMatcher& flann, const Mat& features, int vocabulary_size)
 {
 	Mat output_array = Mat::zeros(Size(vocabulary_size, 1), CV_32F);
-	Mat descriptors_CV_32S;
-	descriptors.convertTo(descriptors_CV_32S, CV_32F);
-	vector<cv::DMatch> matches;
+	Mat features_CV_32S;
+	features.convertTo(features_CV_32S, CV_32F);
+	vector<DMatch> matches;
 
-	flann.match(descriptors_CV_32S, matches);
+	flann.match(features_CV_32S, matches);
 
 	for (size_t i = 0; i < matches.size(); i++)
 	{
@@ -129,16 +142,16 @@ void neural_network::print_confusion_matrix(const vector<vector<int>>& confussio
 {
 	for (auto it = classes.begin(); it != classes.end(); ++it)
 	{
-		cout << *it << " ";
+		std::cout << *it << " ";
 	}
-	cout << endl;
+	std::cout << std::endl;
 	for (size_t i = 0; i < confussion_matrix.size(); i++)
 	{
 		for (size_t j = 0; j < confussion_matrix[i].size(); j++)
 		{
-			cout << confussion_matrix[i][j] << " ";
+			std::cout << confussion_matrix[i][j] << " ";
 		}
-		cout << endl;
+		std::cout << std::endl;
 	}
 }
 
@@ -155,4 +168,20 @@ float neural_network::get_accuracy(const vector<vector<int>>& confusion_matrix)
 		}
 	}
 	return hits / (float)total;
+}
+
+void neural_network::save_models(Ptr<ml::ANN_MLP> mlp, const Mat& vocabulary, const set<string>& classes)
+{
+	string path = "trained machines/";
+	neural_network n_n = neural_network();
+	mlp->save(path+"mlp.yaml");
+	FileStorage fs(path + "vocabulary.yaml", FileStorage::WRITE);
+	fs << "vocabulary" << vocabulary;
+	fs.release();
+	ofstream classes_output(path + "classes.txt");
+	for (auto it = classes.begin(); it != classes.end(); ++it)
+	{
+		classes_output << n_n.get_class_id(classes, *it) << "\t" << *it << std::endl;
+	}
+	classes_output.close();
 }

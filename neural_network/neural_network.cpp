@@ -5,6 +5,8 @@
 #include <opencv2/highgui.hpp>
 #include <iostream>
 #include <experimental/filesystem>
+#include <set>
+#include <opencv2/ml.hpp>
 
 typedef vector<string>::const_iterator myvector;
 namespace fs = std::experimental::filesystem::v1;
@@ -25,7 +27,7 @@ void neural_network::read_files(string pathImages, vector<string> & files) {
 	}
 }
 
-void neural_network::read_images(myvector begin, myvector end, std::function<void(const std::string&, const cv::Mat&)> callback) {
+void neural_network::read_images(myvector begin, myvector end, std::function<void(const std::string&, const Mat&)> callback) {
 	for (auto it = begin; it != end; it++) {
 		string readfilename = *it;
 		// Imread 1 --> color // Imread 0 --> grayscale
@@ -39,4 +41,36 @@ void neural_network::read_images(myvector begin, myvector end, std::function<voi
 			callback(classname, descriptors);
 		}
 	}
+}
+
+Mat neural_network::get_class_code(const set<std::string>& classes, const std::string& classname)
+{
+	Mat code = Mat::zeros(Size((int)classes.size(), 1), CV_32F);
+	int index = get_class_id(classes, classname);
+	code.at<float>(index) = 1;
+	return code;
+}
+
+int neural_network::get_class_id(const std::set<std::string>& classes, const std::string& classname)
+{
+	int index = 0;
+	for (auto it = classes.begin(); it != classes.end(); ++it)
+	{
+		if (*it == classname) break;
+		++index;
+	}
+	return index;
+}
+
+Ptr<ml::ANN_MLP> neural_network::get_trainedNeural_network(const Mat& train_samples, const Mat& train_responses)
+{
+	int network_input_size = train_samples.cols;
+	int network_output_size = train_responses.cols;
+	Ptr<ml::ANN_MLP> mlp = ml::ANN_MLP::create();
+	std::vector<int> layer_sizes = { network_input_size, network_input_size / 2,
+		network_output_size };
+	mlp->setLayerSizes(layer_sizes);
+	mlp->setActivationFunction(ml::ANN_MLP::SIGMOID_SYM);
+	mlp->train(train_samples, ml::ROW_SAMPLE, train_responses);
+	return mlp;
 }

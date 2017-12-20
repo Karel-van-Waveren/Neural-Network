@@ -42,7 +42,7 @@ void neural_network::read_images(myvector begin, myvector end, function<void(con
 {
 	for (auto it = begin; it != end; it++) {
 		string readfilename = *it;
-		Mat image = imread(readfilename, 1);
+		Mat image = imread(readfilename, 0);
 		if (image.empty()) {
 			std::cout << "The image is empty! " << std::endl;
 			fs::remove(readfilename);
@@ -53,6 +53,20 @@ void neural_network::read_images(myvector begin, myvector end, function<void(con
 			//Mat features = this->get_features_AKAZE(image);
 			callback(classname, features);
 		}
+	}
+}
+
+void neural_network::read_image_camera(function<void(const Mat&)> callback)
+{
+	Mat image = imread("Fork.jpg");
+
+	if (image.empty()) {
+		std::cout << "The image is empty! " << std::endl;
+	}
+	else {
+		Mat features = this->get_features_orb(image);
+		//Mat features = this->get_features_AKAZE(image);
+		callback(features);
 	}
 }
 
@@ -75,7 +89,15 @@ int neural_network::get_class_id(const set<string>& classes, const string& class
 	return index;
 }
 
-Ptr<ml::ANN_MLP> neural_network::get_trainedNeural_network(const Mat& train_samples, const Mat& train_responses)
+string neural_network::get_class_name(const set<string>& classes, const int classid)
+{
+	auto it = classes.begin(); 
+	advance(it, classid);
+	return *it;
+}
+
+
+Ptr<ml::ANN_MLP> neural_network::get_trained_neural_network(const Mat& train_samples, const Mat& train_responses)
 {
 	int network_input_size = train_samples.cols;
 	int network_output_size = train_responses.cols;
@@ -107,6 +129,8 @@ Mat neural_network::get_bow_features(FlannBasedMatcher& flann, const Mat& featur
 
 int neural_network::get_predicted_class(const Mat& predictions)
 {
+	//TODO: add probability
+	//normalize(predictions, predictions, 0, 1, NORM_MINMAX, -1, Mat());
 	float max_prediction = predictions.at<float>(0);
 	float max_prediction_index = 0;
 	const float* ptr_predictions = predictions.ptr<float>(0);
@@ -156,6 +180,16 @@ void neural_network::print_confusion_matrix(const vector<vector<int>>& confussio
 	}
 }
 
+void neural_network::print_predicted_class(Ptr<ml::ANN_MLP> mlp, const Mat& test_samples, set<string> & classes)
+{
+	Mat prediction;
+	mlp->predict(test_samples, prediction);
+
+	int predicted_class = this->get_predicted_class(prediction.row(0));
+
+	cout << "predicted class: " << this->get_class_name(classes, predicted_class) << endl;
+}
+
 float neural_network::get_accuracy(const vector<vector<int>>& confusion_matrix)
 {
 	int hits = 0;
@@ -171,10 +205,10 @@ float neural_network::get_accuracy(const vector<vector<int>>& confusion_matrix)
 	return hits / (float)total;
 }
 
-void neural_network::save_models(string model_path,Ptr<ml::ANN_MLP> mlp, const Mat& vocabulary, const set<string>& classes)
+void neural_network::save_models(string model_path, Ptr<ml::ANN_MLP> mlp, const Mat& vocabulary, const set<string>& classes)
 {
 	neural_network n_n = neural_network();
-	mlp->save(model_path +"mlp.yaml");
+	mlp->save(model_path + "mlp.yaml");
 	FileStorage fs(model_path + "vocabulary.yaml", FileStorage::WRITE);
 	fs << "vocabulary" << vocabulary;
 	fs.release();
@@ -205,5 +239,5 @@ void neural_network::load_models(string model_path, Ptr<ml::ANN_MLP>& mlp, Mat& 
 		ss >> index;
 		ss >> classname;
 		classes.insert(classname);
-	}	
+	}
 }

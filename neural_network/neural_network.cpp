@@ -56,10 +56,10 @@ void neural_network::read_images(myvector begin, myvector end, function<void(con
 	}
 }
 
-void neural_network::read_image_camera(function<void(const Mat&)> callback)
+void neural_network::read_image_camera(VideoCapture camera, function<void(const Mat&)> callback)
 {
-	Mat image = imread("Fork.jpg");
-
+	Mat image;
+	camera >> image;
 	if (image.empty()) {
 		std::cout << "The image is empty! " << std::endl;
 	}
@@ -68,6 +68,8 @@ void neural_network::read_image_camera(function<void(const Mat&)> callback)
 		//Mat features = this->get_features_AKAZE(image);
 		callback(features);
 	}
+	imshow(" ",image);
+	waitKey(1);
 }
 
 Mat neural_network::get_class_code(const set<string>& classes, const string& classname)
@@ -127,10 +129,8 @@ Mat neural_network::get_bow_features(FlannBasedMatcher& flann, const Mat& featur
 	return output_array;
 }
 
-int neural_network::get_predicted_class(const Mat& predictions)
+int neural_network::get_predicted_class(const Mat& predictions, set<string> classes, int print_probability)
 {
-	//TODO: add probability
-	//normalize(predictions, predictions, 0, 1, NORM_MINMAX, -1, Mat());
 	float max_prediction = predictions.at<float>(0);
 	float max_prediction_index = 0;
 	const float* ptr_predictions = predictions.ptr<float>(0);
@@ -142,6 +142,10 @@ int neural_network::get_predicted_class(const Mat& predictions)
 			max_prediction = prediction;
 			max_prediction_index = i;
 		}
+	}
+	if (print_probability == 1) {
+		if (max_prediction > 1) std::cout << "predicted class: " << this->get_class_name(classes, max_prediction_index) << " with " << max_prediction << " probability" << std::endl;
+		else std::cout << "no object detected" << std::endl;
 	}
 	return max_prediction_index;
 }
@@ -155,7 +159,7 @@ vector<vector<int>> neural_network::get_confusion_matrix(Ptr<ml::ANN_MLP> mlp, c
 	vector<vector<int>> confusion_matrix(classes.size(), vector<int>(classes.size()));
 	for (int i = 0; i < test_output.rows; i++)
 	{
-		int predicted_class = n_n.get_predicted_class(test_output.row(i));
+		int predicted_class = n_n.get_predicted_class(test_output.row(i),classes);
 		int expected_class = test_output_expected.at(i);
 		confusion_matrix[expected_class][predicted_class]++;
 	}
@@ -185,9 +189,7 @@ void neural_network::print_predicted_class(Ptr<ml::ANN_MLP> mlp, const Mat& test
 	Mat prediction;
 	mlp->predict(test_samples, prediction);
 
-	int predicted_class = this->get_predicted_class(prediction.row(0));
-
-	cout << "predicted class: " << this->get_class_name(classes, predicted_class) << endl;
+	int predicted_class = this->get_predicted_class(prediction.row(0),classes,1);
 }
 
 float neural_network::get_accuracy(const vector<vector<int>>& confusion_matrix)

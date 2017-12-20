@@ -171,7 +171,7 @@ float neural_network::get_accuracy(const vector<vector<int>>& confusion_matrix)
 	return hits / (float)total;
 }
 
-void neural_network::save_models(Ptr<ml::ANN_MLP> mlp, const Mat& vocabulary, const set<string>& classes)
+void neural_network::save_models(string model_path,Ptr<ml::ANN_MLP> mlp, const Mat& vocabulary, const set<string>& classes)
 {
 	neural_network n_n = neural_network();
 	mlp->save(model_path +"mlp.yaml");
@@ -184,4 +184,26 @@ void neural_network::save_models(Ptr<ml::ANN_MLP> mlp, const Mat& vocabulary, co
 		classes_output << n_n.get_class_id(classes, *it) << "\t" << *it << std::endl;
 	}
 	classes_output.close();
+}
+
+void neural_network::load_models(string model_path, Ptr<ml::ANN_MLP>& mlp, Mat& vocabulary, set<string>& classes)
+{
+	mlp = mlp->load(model_path + "mlp.yaml");
+
+	FileStorage fs(model_path + "vocabulary.yaml", FileStorage::READ);
+	fs["vocabulary"] >> vocabulary;
+	fs.release();
+
+	ifstream classes_input(model_path + "classes.txt");
+	std::string line;
+	while (getline(classes_input, line))
+	{
+		stringstream ss;
+		ss << line;
+		int index;
+		string classname;
+		ss >> index;
+		ss >> classname;
+		classes.insert(classname);
+	}	
 }

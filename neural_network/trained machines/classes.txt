@@ -1,2 +1,6 @@
-0	cat
-1	dog
+0	Fork_
+1	Knife
+2	Sciss
+3	Spatu
+4	Spoon
+5	Whisk

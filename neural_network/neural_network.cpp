@@ -8,17 +8,17 @@
 #include <set>
 #include <opencv2/ml.hpp>
 #include <fstream>
+#include <iomanip>
 
 typedef vector<string>::const_iterator myvector;
 namespace fs = experimental::filesystem::v1;
 
 Mat neural_network::get_features_orb(Mat img)
 {
-	Mat features;
 	Ptr<ORB> orb = ORB::create();
-	Mat mask;
+	Mat features;
 	vector<KeyPoint> kp = vector<KeyPoint>();
-	orb->detectAndCompute(img, mask, kp, features);
+	orb->detectAndCompute(img, noArray(), kp, features);
 	return features;
 }
 
@@ -48,7 +48,7 @@ void neural_network::read_images(myvector begin, myvector end, function<void(con
 			fs::remove(readfilename);
 		}
 		else {
-			string classname = readfilename.substr(readfilename.find_last_of("\\") + 1, 3);
+			string classname = readfilename.substr(readfilename.find_last_of("\\") + 1, 5);
 			Mat features = this->get_features_orb(image);
 			//Mat features = this->get_features_AKAZE(image);
 			callback(classname, features);
@@ -122,13 +122,13 @@ int neural_network::get_predicted_class(const Mat& predictions)
 	return max_prediction_index;
 }
 
-vector<vector<int>> neural_network::get_confusion_matrix(Ptr<ml::ANN_MLP> mlp, const Mat& test_samples, const vector<int>& test_output_expected)
+vector<vector<int>> neural_network::get_confusion_matrix(Ptr<ml::ANN_MLP> mlp, const Mat& test_samples, const vector<int>& test_output_expected, set<string> & classes)
 {
 	Mat test_output;
 	neural_network n_n = neural_network();
 
 	mlp->predict(test_samples, test_output);
-	vector<vector<int>> confusion_matrix(2, vector<int>(2));
+	vector<vector<int>> confusion_matrix(classes.size(), vector<int>(classes.size()));
 	for (int i = 0; i < test_output.rows; i++)
 	{
 		int predicted_class = n_n.get_predicted_class(test_output.row(i));
@@ -140,16 +140,17 @@ vector<vector<int>> neural_network::get_confusion_matrix(Ptr<ml::ANN_MLP> mlp, c
 
 void neural_network::print_confusion_matrix(const vector<vector<int>>& confussion_matrix, const set<string> classes)
 {
+	std::cout << "  ";
 	for (auto it = classes.begin(); it != classes.end(); ++it)
 	{
-		std::cout << *it << " ";
+		std::cout << *it << setw(6);
 	}
 	std::cout << std::endl;
 	for (size_t i = 0; i < confussion_matrix.size(); i++)
 	{
 		for (size_t j = 0; j < confussion_matrix[i].size(); j++)
 		{
-			std::cout << confussion_matrix[i][j] << " ";
+			std::cout << confussion_matrix[i][j] << setw(6);
 		}
 		std::cout << std::endl;
 	}
@@ -172,13 +173,12 @@ float neural_network::get_accuracy(const vector<vector<int>>& confusion_matrix)
 
 void neural_network::save_models(Ptr<ml::ANN_MLP> mlp, const Mat& vocabulary, const set<string>& classes)
 {
-	string path = "trained machines/";
 	neural_network n_n = neural_network();
-	mlp->save(path+"mlp.yaml");
-	FileStorage fs(path + "vocabulary.yaml", FileStorage::WRITE);
+	mlp->save(model_path +"mlp.yaml");
+	FileStorage fs(model_path + "vocabulary.yaml", FileStorage::WRITE);
 	fs << "vocabulary" << vocabulary;
 	fs.release();
-	ofstream classes_output(path + "classes.txt");
+	ofstream classes_output(model_path + "classes.txt");
 	for (auto it = classes.begin(); it != classes.end(); ++it)
 	{
 		classes_output << n_n.get_class_id(classes, *it) << "\t" << *it << std::endl;

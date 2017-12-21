@@ -52,7 +52,7 @@ void neural_network::read_images(myvector begin, myvector end, function<void(con
 			fs::remove(readfilename);
 		}
 		else {
-			string classname = readfilename.substr(readfilename.find_last_of("\\") + 1, 5);
+			string classname = readfilename.substr(readfilename.find_last_of("\\") + 1, 3);
 			Mat features = this->get_features_orb(image);
 			//Mat features = this->get_features_AKAZE(image);
 			callback(classname, features);
@@ -142,7 +142,7 @@ Mat neural_network::get_bow_features(FlannBasedMatcher& flann, const Mat& featur
 int neural_network::get_predicted_class(const Mat& predictions, set<string> classes, int print_probability)
 {
 	float max_prediction = predictions.at<float>(0);
-	float max_prediction_index = 0;
+	int max_prediction_index = 0;
 	const float* ptr_predictions = predictions.ptr<float>(0);
 	for (int i = 0; i < predictions.cols; i++)
 	{
@@ -154,7 +154,7 @@ int neural_network::get_predicted_class(const Mat& predictions, set<string> clas
 		}
 	}
 	if (print_probability == 1) {
-		if (max_prediction > 1) std::cout << "predicted class: " << this->get_class_name(classes, max_prediction_index) << " with " << max_prediction << " probability" << std::endl;
+		if (max_prediction > 0.0f) std::cout << "predicted class: " << this->get_class_name(classes, max_prediction_index) << " with " << max_prediction << " probability" << std::endl;
 		else std::cout << "no object detected" << std::endl;
 	}
 	return max_prediction_index;
@@ -201,7 +201,6 @@ void neural_network::print_predicted_class(Ptr<ml::ANN_MLP> mlp, const Mat& test
 {
 	Mat prediction;
 	mlp->predict(test_samples, prediction);
-
 	this->get_predicted_class(prediction.row(0),classes,1);
 }
 

@@ -1,0 +1,6 @@
+0	For
+1	Kni
+2	Sci
+3	Spa
+4	Spo
+5	Whi

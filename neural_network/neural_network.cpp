@@ -13,24 +13,27 @@
 typedef vector<string>::const_iterator myvector;
 namespace fs = experimental::filesystem::v1;
 
+// get features using orb feature matching
 Mat neural_network::get_features_orb(Mat img)
 {
 	Ptr<ORB> orb = ORB::create();
+	vector<KeyPoint> kp;
 	Mat features;
-	vector<KeyPoint> kp = vector<KeyPoint>();
 	orb->detectAndCompute(img, noArray(), kp, features);
 	return features;
 }
 
+// get features using Accelerated KAZE feature matching
 Mat neural_network::get_features_AKAZE(Mat img)
 {
 	Ptr<AKAZE> akaze = AKAZE::create();
-	vector<KeyPoint> keypoints;
+	vector<KeyPoint> kp;
 	Mat features;
-	akaze->detectAndCompute(img, noArray(), keypoints, features);
+	akaze->detectAndCompute(img, noArray(), kp, features);
 	return features;
 }
 
+// read all files in path directory
 void neural_network::read_files(string pathImages, vector<string> & files)
 {
 	for (auto & p : fs::directory_iterator(pathImages)) {
@@ -38,6 +41,7 @@ void neural_network::read_files(string pathImages, vector<string> & files)
 	}
 }
 
+// read all images and get features
 void neural_network::read_images(myvector begin, myvector end, function<void(const string&, const Mat&)> callback)
 {
 	for (auto it = begin; it != end; it++) {
@@ -56,6 +60,7 @@ void neural_network::read_images(myvector begin, myvector end, function<void(con
 	}
 }
 
+// read image from camera and get features
 void neural_network::read_image_camera(VideoCapture camera, function<void(const Mat&)> callback)
 {
 	Mat image;
@@ -72,6 +77,7 @@ void neural_network::read_image_camera(VideoCapture camera, function<void(const 
 	waitKey(1);
 }
 
+// get class codes 
 Mat neural_network::get_class_code(const set<string>& classes, const string& classname)
 {
 	Mat code = Mat::zeros(Size((int)classes.size(), 1), CV_32F);
@@ -80,6 +86,7 @@ Mat neural_network::get_class_code(const set<string>& classes, const string& cla
 	return code;
 }
 
+// get class id
 int neural_network::get_class_id(const set<string>& classes, const string& classname)
 {
 	int index = 0;
@@ -91,6 +98,7 @@ int neural_network::get_class_id(const set<string>& classes, const string& class
 	return index;
 }
 
+// get class name
 string neural_network::get_class_name(const set<string>& classes, const int classid)
 {
 	auto it = classes.begin(); 
@@ -98,7 +106,7 @@ string neural_network::get_class_name(const set<string>& classes, const int clas
 	return *it;
 }
 
-
+// get a neural network and train it
 Ptr<ml::ANN_MLP> neural_network::get_trained_neural_network(const Mat& train_samples, const Mat& train_responses)
 {
 	int network_input_size = train_samples.cols;
@@ -112,6 +120,7 @@ Ptr<ml::ANN_MLP> neural_network::get_trained_neural_network(const Mat& train_sam
 	return mlp;
 }
 
+// get the features in bag of words model
 Mat neural_network::get_bow_features(FlannBasedMatcher& flann, const Mat& features, int vocabulary_size)
 {
 	Mat output_array = Mat::zeros(Size(vocabulary_size, 1), CV_32F);
@@ -129,6 +138,7 @@ Mat neural_network::get_bow_features(FlannBasedMatcher& flann, const Mat& featur
 	return output_array;
 }
 
+// get the predicted class, optionally print out the predicted class if print_probability is set to 1
 int neural_network::get_predicted_class(const Mat& predictions, set<string> classes, int print_probability)
 {
 	float max_prediction = predictions.at<float>(0);
@@ -150,6 +160,7 @@ int neural_network::get_predicted_class(const Mat& predictions, set<string> clas
 	return max_prediction_index;
 }
 
+// get the confusion matrix 
 vector<vector<int>> neural_network::get_confusion_matrix(Ptr<ml::ANN_MLP> mlp, const Mat& test_samples, const vector<int>& test_output_expected, set<string> & classes)
 {
 	Mat test_output;
@@ -166,6 +177,7 @@ vector<vector<int>> neural_network::get_confusion_matrix(Ptr<ml::ANN_MLP> mlp, c
 	return confusion_matrix;
 }
 
+// print the confusion matrix
 void neural_network::print_confusion_matrix(const vector<vector<int>>& confussion_matrix, const set<string> classes)
 {
 	std::cout << "  ";
@@ -184,14 +196,16 @@ void neural_network::print_confusion_matrix(const vector<vector<int>>& confussio
 	}
 }
 
+// print the predicted class
 void neural_network::print_predicted_class(Ptr<ml::ANN_MLP> mlp, const Mat& test_samples, set<string> & classes)
 {
 	Mat prediction;
 	mlp->predict(test_samples, prediction);
 
-	int predicted_class = this->get_predicted_class(prediction.row(0),classes,1);
+	this->get_predicted_class(prediction.row(0),classes,1);
 }
 
+// get accuracy using the confusion matrix
 float neural_network::get_accuracy(const vector<vector<int>>& confusion_matrix)
 {
 	int hits = 0;
@@ -207,13 +221,16 @@ float neural_network::get_accuracy(const vector<vector<int>>& confusion_matrix)
 	return hits / (float)total;
 }
 
+// save models to path defined in the top of the main
 void neural_network::save_models(string model_path, Ptr<ml::ANN_MLP> mlp, const Mat& vocabulary, const set<string>& classes)
 {
-	neural_network n_n = neural_network();
 	mlp->save(model_path + "mlp.yaml");
+
 	FileStorage fs(model_path + "vocabulary.yaml", FileStorage::WRITE);
 	fs << "vocabulary" << vocabulary;
 	fs.release();
+
+	neural_network n_n = neural_network();
 	ofstream classes_output(model_path + "classes.txt");
 	for (auto it = classes.begin(); it != classes.end(); ++it)
 	{
@@ -222,6 +239,7 @@ void neural_network::save_models(string model_path, Ptr<ml::ANN_MLP> mlp, const 
 	classes_output.close();
 }
 
+// load models in the path defined in the top of the main
 void neural_network::load_models(string model_path, Ptr<ml::ANN_MLP>& mlp, Mat& vocabulary, set<string>& classes)
 {
 	mlp = mlp->load(model_path + "mlp.yaml");

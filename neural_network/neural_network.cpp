@@ -37,6 +37,7 @@ Mat neural_network::get_features_AKAZE(Mat img)
 void neural_network::read_files(string pathImages, vector<string> & files)
 {
 	for (auto & p : fs::directory_iterator(pathImages)) {
+		if (!is_directory(p))
 		files.push_back(p.path().string());
 	}
 }
@@ -49,7 +50,6 @@ void neural_network::read_images(myvector begin, myvector end, function<void(con
 		Mat image = imread(readfilename, 0);
 		if (image.empty()) {
 			std::cout << "The image is empty! " << std::endl;
-			fs::remove(readfilename);
 		}
 		else {
 			string classname = readfilename.substr(readfilename.find_last_of("\\") + 1, 3);
@@ -223,6 +223,8 @@ float neural_network::get_accuracy(const vector<vector<int>>& confusion_matrix)
 // save models to path defined in the top of the main
 void neural_network::save_models(string model_path, Ptr<ml::ANN_MLP> mlp, const Mat& vocabulary, const set<string>& classes)
 {
+	experimental::filesystem::create_directory(model_path);
+
 	mlp->save(model_path + "mlp.yaml");
 
 	FileStorage fs(model_path + "vocabulary.yaml", FileStorage::WRITE);
